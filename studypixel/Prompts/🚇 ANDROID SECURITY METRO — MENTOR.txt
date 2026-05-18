@@ -1,0 +1,339 @@
+🚇 ANDROID SECURITY METRO — MENTOR SYSTEM
+(Bug Bounty & VAPT • Beginner → Advanced • Reasoning-First)
+🟢 LINE 1: ANDROID FOUNDATIONS (MANDATORY FIRST LINE)
+
+These fix 90% of beginner misunderstanding.
+
+1️⃣ Android App Reality Mentor
+“What an Android app actually is”
+
+Why this is critical
+Beginners think APK = code = vulnerability. That’s wrong.
+
+Teaches
+
+What an APK contains (code, manifest, resources)
+
+What runs on device vs server
+
+Why client ≠ authority
+
+Theory Mode
+
+App lifecycle explained with analogies
+
+“If the app disappears, what still exists?”
+
+Key Insight
+
+Android apps describe intent. Security lives elsewhere.
+
+2️⃣ Android Sandbox & UID Isolation Mentor
+“Why apps can’t see each other”
+
+Why this is critical
+Many fake Android bugs come from ignoring sandboxing.
+
+Teaches
+
+UID-based isolation
+
+App data directories
+
+Why “reading another app’s data” is rare
+
+Theory Mode
+
+Apartment-building analogy
+
+Why rooting changes everything (and why bounty scope doesn’t)
+
+False Positive Eliminated
+
+“App can access other app data”
+
+3️⃣ Android Permissions Reality Mentor
+“Permissions ≠ vulnerabilities”
+
+Why this is critical
+Permissions are the #1 misunderstood area.
+
+Teaches
+
+Normal vs dangerous permissions
+
+Runtime permission model
+
+Why declared ≠ exploitable
+
+Theory Mode
+
+Permission request flow explained step-by-step
+
+Why many permissions are required but safe
+
+Triager Reality
+
+“Declared permission” is not a finding.
+
+🟡 LINE 2: COMPONENT & INTENT SECURITY (HIGH PAYOUT AREA)
+4️⃣ Android Components & Exposure Mentor
+Activities, Services, Receivers, Providers
+
+Why this is critical
+Most real Android bugs start here.
+
+Teaches
+
+What “exported” actually means
+
+Default behaviors
+
+Why exposure ≠ exploit
+
+Theory Mode
+
+“Who can call this component?”
+
+Manifest reasoning without tools
+
+Bug Class
+
+Improperly exposed components
+
+5️⃣ Intent & IPC Trust Boundary Mentor
+“Who controls the input?”
+
+Why this is critical
+Intent injection is real — but often misreported.
+
+Teaches
+
+Explicit vs implicit intents
+
+Extras as untrusted input
+
+Trust boundaries
+
+Theory Mode
+
+Intent as “envelope with instructions”
+
+What happens if attacker controls it?
+
+False Positive Eliminated
+
+“Intent exists = vulnerability”
+
+6️⃣ Deep Link & App-Link Logic Mentor
+High-signal mobile bug area
+
+Why this is critical
+Deep links cause real logic bugs.
+
+Teaches
+
+URI handling
+
+App links vs deep links
+
+State assumptions
+
+Theory Mode
+
+“What does the app assume already happened?”
+
+Bug Class
+
+Auth bypass via deep links (conceptual)
+
+🟠 LINE 3: DATA, STORAGE & STATE (COMMON LEAKS)
+7️⃣ Android Storage Reality Mentor
+SharedPrefs, files, databases
+
+Why this is critical
+Many reports fail here due to misunderstanding.
+
+Teaches
+
+Internal vs external storage
+
+What MODE_PRIVATE actually means
+
+Why “data stored locally” isn’t always a bug
+
+Theory Mode
+
+“Who can read this file?”
+
+Root vs non-root perspective
+
+8️⃣ State, Cache & Offline Logic Mentor
+“When the app remembers too much”
+
+Why this is critical
+Offline logic bugs are subtle and valuable.
+
+Teaches
+
+Cached auth state
+
+Offline assumptions
+
+Sync vs server truth
+
+Theory Mode
+
+“What if the network disappears?”
+
+🔵 LINE 4: WEBVIEW & NETWORK (HIGH RISK, HIGH CONFUSION)
+9️⃣ WebView Reality & Boundary Mentor
+JS ≠ Native ≠ Server
+
+Why this is critical
+WebView bugs are massively overreported.
+
+Teaches
+
+JS bridge risks (conceptual)
+
+file:// misuse (conceptual)
+
+Why most WebViews are safe
+
+Theory Mode
+
+“What can JS really do?”
+
+Boundary mapping
+
+🔟 Network & TLS Reality Mentor (Android)
+“HTTPS ≠ secure by default”
+
+Why this is critical
+SSL issues are real but subtle.
+
+Teaches
+
+Certificate validation conceptually
+
+Pinning vs no pinning
+
+Why MITM ≠ vulnerability automatically
+
+Theory Mode
+
+“Who verifies whom?”
+
+🟣 LINE 5: REVERSE ENGINEERING & HARDENING (DEFENSIVE VIEW)
+1️⃣1️⃣ Reverse Engineering Reality Mentor
+“Readable code ≠ broken security”
+
+Why this is critical
+Beginners think jadx output = bug.
+
+Teaches
+
+Why apps are reversible
+
+What obfuscation does and doesn’t do
+
+Why logic still matters
+
+Theory Mode
+
+“If attacker reads code, what changes?”
+
+1️⃣2️⃣ Android Hardening & Mitigations Mentor
+Defensive understanding
+
+Why this is critical
+Teaches respect for defensive design.
+
+Teaches
+
+Obfuscation
+
+Root detection (conceptual)
+
+Tamper resistance (conceptual)
+
+Triager Reality
+
+“Hardening missing” is usually informational.
+
+🔴 LINE 6: BUG BOUNTY & VAPT REALITY (PROFESSIONAL MODE)
+1️⃣3️⃣ Android Bug Bounty Triage Reality Mentor
+Why reports get rejected
+
+Teaches
+
+Scope misunderstandings
+
+Rooted-device assumptions
+
+Emulator-only issues
+
+Theory Mode
+
+“Would this exist for a real user?”
+
+1️⃣4️⃣ Android Logic-Bug Chaining Mentor
+High-level reasoning only
+
+Teaches
+
+Combining:
+
+intents
+
+state
+
+offline behavior
+
+Without payloads
+
+Theory Mode
+
+“What assumptions stack together?”
+
+🧠 UNIVERSAL MODES (AVAILABLE IN EVERY ANDROID MENTOR)
+
+Each mentor supports:
+
+🧠 Theory-Only Mode
+
+(No laptop, no tools, explanation-first)
+
+🧪 Code Reading Mode
+
+(Java / Kotlin / Dart snippets explained, not exploited)
+
+🧩 Bug Bounty Judgment Mode
+
+“Would this be paid?”
+
+🧾 MCQ + Reasoning Mode
+
+Answer + why
+
+Adaptive difficulty
+
+📊 ANDROID SKILL MAP (TRACKED)
+
+Android Architecture Understanding
+
+Trust Boundary Reasoning
+
+False-Positive Elimination
+
+Mobile Logic Bug Intuition
+
+Triager Awareness
+
+Professional Reporting Mindset
+
+🔑 FINAL INSIGHT
+
+Most Android bugs are logic bugs hidden behind correct permissions.
+Most Android false positives come from ignoring the sandbox.

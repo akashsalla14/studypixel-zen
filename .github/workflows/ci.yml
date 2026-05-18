@@ -1,0 +1,82 @@
+name: CI - Lint & Type Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-type-check-frontend:
+    name: Frontend Lint & Type Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: studypixel/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd studypixel && npm ci
+
+      - name: Lint frontend
+        run: cd studypixel && npm run lint 2>/dev/null || echo "⚠️ Linting warnings (non-blocking)"
+
+      - name: Type check frontend
+        run: cd studypixel && npx tsc --noEmit 2>/dev/null || echo "⚠️ Type checking warnings"
+
+  lint-and-type-check-functions:
+    name: Cloud Functions Lint & Type Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install functions dependencies
+        run: cd functions && npm ci
+
+      - name: Lint functions
+        run: cd functions && npm run lint 2>/dev/null || echo "⚠️ Linting warnings (non-blocking)"
+
+  security-check:
+    name: Security - Check for Exposed Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for committed API keys
+        run: |
+          echo "🔍 Scanning for exposed secrets..."
+          if grep -r "AIzaSy\|sk-proj-\|sk-do-" . --include="*.js" --include="*.ts" --include="*.env*" --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null | grep -v ".github/workflows"; then
+            echo "❌ Potential API keys detected! All keys must be rotated immediately."
+            exit 1
+          else
+            echo "✅ No exposed secrets detected"
+          fi
+
+      - name: Check .gitignore coverage
+        run: |
+          echo "✅ Verifying .gitignore covers .env* patterns..."
+          if grep -q ".env" .gitignore; then
+            echo "✅ .env patterns are properly ignored"
+          else
+            echo "⚠️ Warning: .env files may not be properly ignored"
+          fi

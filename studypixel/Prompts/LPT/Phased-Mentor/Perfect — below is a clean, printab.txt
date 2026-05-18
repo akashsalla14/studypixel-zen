@@ -1,0 +1,219 @@
+Perfect — below is a **clean, printable, exam-grade checklist** you can **save as PDF / print / keep beside you** for the next 70 days.
+
+This is written to be **actionable**, not descriptive.
+
+---
+
+# 🧠🛡️ LPT 70-DAY PREPARATION CHECKLIST
+
+**(4 hours/day • 1 pair/day • Mentor-driven)**
+
+---
+
+## 🔑 DAILY NON-NEGOTIABLE CHECKLIST (PRINT THIS)
+
+☐ I studied **ONE pair only** today
+☐ I did **NOT jump topics mid-day**
+☐ I avoided tools, commands, payloads
+☐ I explained the pair **verbally without notes**
+☐ I used **at least 4 mentors today**
+☐ I completed **Daily Reasoning Audit**
+
+If **any box is unchecked → the day does NOT count**
+
+---
+
+## ⏱️ DAILY 4-HOUR EXECUTION LOOP
+
+☐ **Hour 1** – Concept A (trust & failure)
+☐ **Hour 2** – Concept B (enabled by A)
+☐ **Hour 3** – Full attack chain + decisions
+☐ **Hour 4** – Defense, detection & reporting
+
+Mentors used today:
+☐ Pair Mentor
+☐ Attack Chain Constructor
+☐ Attacker vs Defender Debate
+☐ Pentest Reporting Mentor
+☐ Daily Reasoning Audit
+
+---
+
+# 🗓️ PHASE 1 — NETWORK & PROTOCOL TRUST (Days 1–10)
+
+☐ Day 1 – ARP spoofing → MITM credential capture
+☐ Day 2 – DNS poisoning → Phishing / C2 redirection
+☐ Day 3 – DHCP rogue server → Network control
+☐ Day 4 – ICMP misuse → Network reconnaissance
+☐ Day 5 – TCP handshake → Session hijacking
+☐ Day 6 – UDP services → Amplification abuse
+
+☐ Day 7 – **REVISION**
+
+* Rebuild weakest 2 chains from memory
+* Examiner Mindset grading
+
+☐ Day 8 – Network segmentation → Lateral movement
+☐ Day 9 – Firewall rules → Evasion paths
+
+☐ Day 10 – **NETWORK MOCK**
+
+* 2 scenarios
+* Examiner + Reporting only
+
+---
+
+# 🗓️ PHASE 2 — IDENTITY, AUTH & ACCESS CONTROL (Days 11–20)
+
+☐ Day 11 – Authentication → Authorization
+☐ Day 12 – Password policy → Credential reuse
+☐ Day 13 – Kerberos → Pass-the-Ticket
+☐ Day 14 – NTLM → Relay attacks
+☐ Day 15 – Session tokens → Fixation / hijacking
+☐ Day 16 – Identity trust → Privilege misuse
+
+☐ Day 17 – **REVISION**
+
+* Auth vs AuthZ traps
+* Examiner grading
+
+☐ Day 18 – Identity failure → Business impact
+☐ Day 19 – AuthZ failure → Severity reasoning
+
+☐ Day 20 – **IDENTITY MOCK**
+
+---
+
+# 🗓️ PHASE 3 — WEB & APPLICATION CHAINS (Days 21–32)
+
+☐ Day 21 – Input validation → Injection logic
+☐ Day 22 – File upload → Command execution
+☐ Day 23 – XSS → Session theft
+☐ Day 24 – CSRF → Privilege misuse
+☐ Day 25 – API endpoints → BOLA
+☐ Day 26 – Business logic → Financial abuse
+☐ Day 27 – Workflow abuse → Auth bypass
+
+☐ Day 28 – **REVISION**
+
+* False positives elimination
+
+☐ Day 29 – Web logic → OS impact
+☐ Day 30 – Web → Network pivot
+
+☐ Day 31 – **WEB MOCK**
+☐ Day 32 – **REPORTING-ONLY DRILLS**
+
+---
+
+# 🗓️ PHASE 4 — OS & PRIVILEGE ESCALATION (Days 33–44)
+
+☐ Day 33 – Linux permissions → Priv esc
+☐ Day 34 – SUID → Command execution
+☐ Day 35 – Cron jobs → Persistence
+☐ Day 36 – Env vars → PATH hijack
+☐ Day 37 – Windows services → Priv esc
+☐ Day 38 – Token impersonation → Lateral access
+
+☐ Day 39 – **REVISION**
+
+* Feasibility debates
+
+☐ Day 40 – Priv esc → Reporting impact
+☐ Day 41 – Escalation stop conditions
+☐ Day 42 – OS → Network transition
+
+☐ Day 43 – **OS MOCK**
+☐ Day 44 – **ESCALATION REPORT REVIEW**
+
+---
+
+# 🗓️ PHASE 5 — POST-EXPLOITATION & MOVEMENT (Days 45–54)
+
+☐ Day 45 – Credential dumping → Lateral movement
+☐ Day 46 – SMB shares → Internal recon
+☐ Day 47 – RDP → Domain compromise path
+☐ Day 48 – SSH trust → Key abuse
+☐ Day 49 – Local admin → Domain escalation
+
+☐ Day 50 – **REVISION**
+
+* Decision justification
+
+☐ Day 51 – Post-exploit → Detection
+☐ Day 52 – Post-exploit → Reporting value
+☐ Day 53 – Movement stop decisions
+
+☐ Day 54 – **POST-EXPLOIT MOCK**
+
+---
+
+# 🗓️ PHASE 6 — ARCHITECTURE & DEFENSE (Days 55–62)
+
+☐ Day 55 – Network segmentation → Lateral movement
+☐ Day 56 – Firewall rules → Evasion paths
+☐ Day 57 – NAT → Attribution loss
+☐ Day 58 – Proxy → C2 hiding
+☐ Day 59 – VPN trust → Internal exposure
+
+☐ Day 60 – **REVISION**
+
+* Boundary failures
+
+☐ Day 61 – Defense failure → Risk reporting
+☐ Day 62 – **ARCHITECTURE MOCK**
+
+---
+
+# 🗓️ PHASE 7 — DETECTION, REPORTING & EXAM (Days 63–70)
+
+☐ Day 63 – Attack execution → Log artifacts
+☐ Day 64 – Persistence → Detection signals
+☐ Day 65 – Exploit success → Business impact
+☐ Day 66 – Vulnerability → Risk rating logic
+☐ Day 67 – Technical finding → Executive summary
+
+☐ Day 68 – **FULL MOCK EXAM**
+
+* Examiner mentor only
+
+☐ Day 69 – **WEAK AREA FIX**
+
+* Rebuild weakest 3 chains
+
+☐ Day 70 – **FINAL READINESS**
+
+* Verbal only
+* No notes
+* Examiner + Audit only
+
+---
+
+## 🧠 DAILY REASONING AUDIT (END OF DAY)
+
+☐ What assumption failed today?
+☐ What did I overestimate?
+☐ What did I skip?
+☐ Would an LPT examiner accept my reasoning?
+☐ One rule for tomorrow: __________
+
+---
+
+# 🎯 PASS CONDITION (PRINT THIS AT THE BOTTOM)
+
+☐ I can explain **any pair without tools**
+☐ I justify **why**, not just **how**
+☐ I know **when to stop**
+☐ I can write a **clear impact statement**
+
+➡️ **If all checked → you are LPT-ready**
+
+---
+
+If you want next, I can:
+
+* generate this as **PDF / Markdown**
+* create **daily prompt cards** (copy-paste)
+* or run **Day 1 live with checklist enforcement**
+
+Just say the word.

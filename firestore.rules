@@ -1,0 +1,99 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      // WHAT: This set of rules governs access to user profiles.
+      // WHY: It provides granular control: users can see their own data, teachers can see their students, and admins can see everyone. This is more secure than a blanket `allow read`.
+      // HOW: It uses multiple conditions. The `get()` rule is checked for every document returned by a query.
+      allow get: if request.auth.uid == userId || // User can get their own profile
+                 (resource.data.teacherId != null && resource.data.teacherId == request.auth.uid) || // Teacher can get their student's profile
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; // Admin can get any profile
+
+      // The `list` rule allows the query to be executed. The `get` rule above then secures the results.
+      // Admins can list all users; teachers can only list users assigned to them.
+      allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+                  (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher' &&
+                   resource.data.teacherId == request.auth.uid);
+
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Rules for the 'classes' collection
+    match /classes/{classId} {
+      // Any authenticated user can read class info (e.g., a student might need to see their class name)
+      // This can be tightened later if needed.
+      allow read: if request.auth != null;
+
+      // Only the assigned teacher can update a class (e.g., add students)
+      allow update: if request.auth != null && resource.data.teacherId == request.auth.uid;
+
+      // A teacher can create a class if they set themselves as the teacherId
+      allow create: if request.auth != null && request.resource.data.teacherId == request.auth.uid;
+    }
+
+    // Rules for the 'pixelbots' collection
+    match /pixelbots/{pixelbotId} {
+      // Anyone authenticated can read pixelbots (e.g., students assigned to them)
+      allow read: if request.auth != null;
+      // Only the teacher who owns the pixelbot can create or update it.
+      allow create, update: if request.auth.uid == request.resource.data.teacherId;
+    }
+
+    // Rules for notifications and messages
+    match /notifications/{notificationId} {
+      // A teacher can create a notification if they are the sender.
+      allow create: if request.auth != null && request.resource.data.teacherId == request.auth.uid;
+
+      // A student can read a notification if they are the direct recipient,
+      // or if the notification is for a class they are a member of.
+      allow read: if request.auth != null &&
+                  (resource.data.recipientId == request.auth.uid ||
+                   (resource.data.recipientType == 'class' &&
+                    get(/databases/$(database)/documents/classes/$(resource.data.recipientId)).data.studentIds.hasAny([request.auth.uid])));
+
+      // Students can update the 'read' status of their notifications.
+      allow update: if request.auth != null &&
+                     (resource.data.recipientId == request.auth.uid) &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // Nobody can delete notifications for now to maintain an audit trail.
+      // This can be changed later if needed.
+      allow delete: if false;
+    }
+
+    // --- Student Progress & Chat History ---
+    // CRITICAL: Updated to support the new 'messages' subcollection
+    match /studentProgress/{progressId} {
+      // 1. Allow access to the main progress document if the ID belongs to the user
+      // Logic: The ID format is "progress_{USER_ID}_{BOT_ID}"
+      allow read, write: if request.auth != null && progressId.split('_')[1] == request.auth.uid;
+
+      // 2. NEW: Explicitly allow access to the 'messages' subcollection
+      // This fixes the "Missing or insufficient permissions" error for the new chat storage
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null && progressId.split('_')[1] == request.auth.uid;
+      }
+    }
+
+    // --- System Logs ---
+    // Required for logSystemEvent in dataService.js (backend only)
+    // 🔐 FIX P1: Only allow backend to write logs via Admin SDK
+    match /systemLogs/{logId} {
+      allow read: if request.auth != null && request.auth.token.admin == true;
+      allow create, update, delete: if false;
+    }
+
+    // --- Widget Definitions ---
+    // All authenticated users (students/teachers) can read widget configs.
+    match /widgets/{widgetId} {
+      allow read: if request.auth != null;
+    }
+
+    // --- Default Deny ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
