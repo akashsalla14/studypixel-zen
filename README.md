@@ -1,5 +1,8 @@
 # StudyPixel-GPT: The Adaptive Learning Operating System
 
+The offline-first personal edition now lives in [studypixel-zen/](studypixel-zen/).
+That folder contains the new StudyPixel Zen workspace, which keeps the widget and tutoring architecture while dropping the classroom-first cloud flow.
+
 StudyPixel-GPT is not just a chatbot; it is a **comprehensive, role-based adaptive tutoring platform** designed to revolutionize education. It functions as a "Learning Operating System" where AI tutors, known as **PixelBots**, continuously observe, teach, evaluate, and adapt to each learner's unique pace and style in real-time. By combining advanced cognitive modeling with a professional-grade interface, StudyPixel creates a personalized learning journey for every student while giving teachers powerful oversight tools.
 
 ---
@@ -106,3 +109,5 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+# studypixel-zen
