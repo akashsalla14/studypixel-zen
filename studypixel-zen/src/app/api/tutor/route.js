@@ -1,111 +1,82 @@
 import { NextResponse } from 'next/server';
-import { normalizeTutorResponse, parseLlmJson, buildTutorPrompt } from '../../../lib/tutor';
+import { callOllama, classifyModelFailure, listLocalModels } from '../../../model/ollamaClient';
+import { compactHistory } from '../../../session/sessionManager';
+import { buildRepairPrompt, buildTutorPrompt, normalizeTutorResponse, parseLlmJson } from '../../../tutor/contract';
+import { getEnabledWidgets } from '../../../widgets/widgetPolicy';
 
-const OLLAMA_URL = 'http://localhost:11434/v1/chat/completions';
+let tutorQueue = Promise.resolve();
 
-async function callOllama(messages, model) {
-  const response = await fetch(OLLAMA_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: false,
-      temperature: 0.3,
-      max_tokens: 384,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Ollama returned ${response.status}`);
-  }
-
-  const payload = await response.json();
-  return payload.choices?.[0]?.message?.content || '';
+function runSequentially(task) {
+  const run = tutorQueue.then(task, task);
+  tutorQueue = run.catch(() => {});
+  return run;
 }
 
-async function repairResponse(message, context) {
-  const repairPrompt = buildTutorPrompt({
-    mode: 'repair',
-    message,
-    context,
-  });
+async function repairResponse(rawText, model) {
+  const repaired = await callOllama([
+    { role: 'system', content: 'Return only strict JSON. Never add markdown.' },
+    { role: 'user', content: buildRepairPrompt(rawText) },
+  ], model, { temperature: 0.1, maxTokens: 320, timeoutMs: 25000 });
 
-  const raw = await callOllama([
-    { role: 'system', content: 'Return only strict JSON.' },
-    { role: 'user', content: repairPrompt },
-  ], context.model || 'qwen2.5:0.5b');
-
-  return parseLlmJson(raw);
+  return parseLlmJson(repaired);
 }
 
 export async function GET() {
-  try {
-    const response = await fetch('http://localhost:11434/api/tags');
-    if (!response.ok) {
-      return NextResponse.json({ running: false, models: [] }, { status: 200 });
-    }
-
-    const payload = await response.json();
-    return NextResponse.json({
-      running: true,
-      models: Array.isArray(payload.models) ? payload.models : [],
-    });
-  } catch {
-    return NextResponse.json({ running: false, models: [] }, { status: 200 });
-  }
+  const health = await listLocalModels();
+  return NextResponse.json(health, { status: 200 });
 }
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
 
   if (body.type === 'health') {
-    try {
-      const response = await fetch('http://localhost:11434/api/tags');
-      const models = response.ok ? await response.json() : { models: [] };
-      return NextResponse.json({
-        running: response.ok,
-        models: Array.isArray(models.models) ? models.models : [],
-      });
-    } catch {
-      return NextResponse.json({ running: false, models: [] }, { status: 200 });
-    }
+    const health = await listLocalModels();
+    return NextResponse.json(health, { status: 200 });
   }
 
-  const history = Array.isArray(body.history) ? body.history.slice(-6) : [];
+  const history = compactHistory(Array.isArray(body.history) ? body.history : [], 6);
   const context = {
     profile: body.profile || {},
     topic: body.topic || 'general study',
     model: body.model || 'qwen2.5:0.5b',
     sessionSummary: body.sessionSummary || '',
   };
-
-  const prompt = buildTutorPrompt({
-    mode: 'turn',
-    message: body.message || '',
-    context,
+  const enabledWidgets = getEnabledWidgets({
+    heavyWidgetsEnabled: body?.settings?.heavyWidgetsEnabled,
+    memoryPressure: body?.memoryPressure || 'Low',
   });
 
-  try {
-    const raw = await callOllama([
-      { role: 'system', content: 'Return compact JSON only. Use SPEAK unless a widget is clearly appropriate.' },
-      ...history.map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: item.content })),
-      { role: 'user', content: prompt },
-    ], context.model);
+  const prompt = buildTutorPrompt({ message: body.message || '', context, enabledWidgets });
 
-    const parsed = parseLlmJson(raw) || await repairResponse(raw, context).catch(() => null);
+  try {
+    const { raw, parsed } = await runSequentially(async () => {
+      const rawText = await callOllama([
+        { role: 'system', content: 'Return compact strict JSON only. Unknown action must be SPEAK.' },
+        ...history.map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: item.content })),
+        { role: 'user', content: prompt },
+      ], context.model, { temperature: 0.25, maxTokens: 420, timeoutMs: 45000 });
+
+      const parsedResponse = parseLlmJson(rawText) || await repairResponse(rawText, context.model).catch(() => null);
+      return { raw: rawText, parsed: parsedResponse };
+    });
+
+    const normalized = normalizeTutorResponse(parsed, raw, enabledWidgets);
+
     return NextResponse.json({
       ok: true,
-      output: normalizeTutorResponse(parsed, raw),
+      output: normalized,
+      runtime: {
+        model: context.model,
+        enabledWidgets,
+      },
     });
   } catch (error) {
+    const failureState = classifyModelFailure(error?.message || '');
     return NextResponse.json({
       ok: false,
-      output: normalizeTutorResponse(null, error?.message || ''),
+      output: normalizeTutorResponse(null, 'The local tutor is unavailable right now.', enabledWidgets),
       error: 'Ollama unavailable or model request failed.',
+      failureState,
     });
   }
 }

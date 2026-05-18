@@ -1,13 +1,16 @@
-import { MCQWidget } from '../../../studypixel/src/components/pixelbot/widgets/MCQWidget.js';
-import { MCQReasoningWidget } from '../../../studypixel/src/components/pixelbot/widgets/MCQReasoningWidget.js';
-import FlashcardWidget from '../../../studypixel/src/components/pixelbot/widgets/FlashcardWidget.js';
-import FillBlankWidget from '../../../studypixel/src/components/pixelbot/widgets/FillBlankWidget.js';
-import MatchingWidget from '../../../studypixel/src/components/pixelbot/widgets/MatchingWidget.js';
-import TimelineWidget from '../../../studypixel/src/components/pixelbot/widgets/TimelineWidget.js';
-import AnalogyWidget from '../../../studypixel/src/components/pixelbot/widgets/AnalogyWidget.js';
-import SpacedReviewWidget from '../../../studypixel/src/components/pixelbot/widgets/SpacedReviewWidget.js';
-import { DiagramGeneratorWidget } from '../../../studypixel/src/components/pixelbot/widgets/DiagramGeneratorWidget.js';
-import { SignalComparisonWidget } from '../../../studypixel/src/components/pixelbot/widgets/SignalComparisonWidget.js';
+import { MCQWidget } from '../widgets/components/MCQWidget.js';
+import { MCQReasoningWidget } from '../widgets/components/MCQReasoningWidget.js';
+import FlashcardWidget from '../widgets/components/FlashcardWidget.js';
+import FillBlankWidget from '../widgets/components/FillBlankWidget.js';
+import MatchingWidget from '../widgets/components/MatchingWidget.js';
+import TimelineWidget from '../widgets/components/TimelineWidget.js';
+import AnalogyWidget from '../widgets/components/AnalogyWidget.js';
+import SpacedReviewWidget from '../widgets/components/SpacedReviewWidget.js';
+import { DiagramGeneratorWidget } from '../widgets/components/DiagramGeneratorWidget.js';
+import { SignalComparisonWidget } from '../widgets/components/SignalComparisonWidget.js';
+import { TacticalSandboxWidget } from '../widgets/components/TacticalSandboxWidget.js';
+import ImageAnalysisWidget from '../widgets/components/ImageAnalysisWidget.js';
+import { disabledInitially, getEnabledWidgets, optionalWidgets, requiredWidgets } from '../widgets/widgetPolicy';
 
 export const widgetCatalog = {
   'mcq-v1': MCQWidget,
@@ -20,9 +23,19 @@ export const widgetCatalog = {
   'spaced-review-v1': SpacedReviewWidget,
   'diagram-generator-v1': DiagramGeneratorWidget,
   'signal-comparison-v1': SignalComparisonWidget,
+  'tactical-sandbox-v1': TacticalSandboxWidget,
+  'image-analysis-v1': ImageAnalysisWidget,
 };
 
 export const widgetPolicy = {
-  enabled: ['mcq-v1', 'mcq-reasoning-v1', 'flashcard-v1', 'fill-blank-v1', 'matching-v1', 'timeline-v1', 'analogy-v1', 'spaced-review-v1', 'diagram-generator-v1', 'signal-comparison-v1'],
-  disabledInitially: ['tactical-sandbox-v1', 'image-analysis-v1'],
+  required: requiredWidgets,
+  optional: optionalWidgets,
+  disabledInitially,
+  enabled: requiredWidgets,
 };
+
+export { getEnabledWidgets };
+
+export function getEnabledWidgetIds(options) {
+  return getEnabledWidgets(options);
+}

@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { exportZenBackup, importZenBackup, loadZenState, resetZenState, saveZenState } from '../lib/localStore';
-import { normalizeTutorResponse } from '../lib/tutor';
-import { widgetCatalog, widgetPolicy } from './externalWidgets';
+import { exportZenBackup, hydrateZenState, importZenBackup, loadZenState, resetZenState, saveZenState } from '../lib/localStore';
+import { buildTelemetry } from '../lib/tutor';
+import { compactHistory, inferMemoryPressure, summarizeMessages, trimMessagesWithSummary } from '../session/sessionManager';
+import { deriveRuntimeState } from '../ui/runtimeState';
+import { getEnabledWidgets } from '../widgets/widgetPolicy';
+import { getEnabledWidgetIds, widgetCatalog } from './externalWidgets';
 
 const screens = {
   setup: 'setup',
@@ -11,6 +14,36 @@ const screens = {
   workspace: 'workspace',
   settings: 'settings',
   review: 'review',
+};
+
+const preferredModelOrder = ['qwen2.5:0.5b', 'llama3.2:1b', 'phi3:mini', 'phi3.5:mini'];
+
+const setupSeedPacks = {
+  beginner: {
+    label: 'Beginner Starter',
+    topic: 'study skills and foundational learning',
+    review: [
+      { prompt: 'Recall one thing you learned yesterday in your own words.', topic: 'memory' },
+      { prompt: 'Explain a concept using a real-life analogy.', topic: 'understanding' },
+    ],
+  },
+  researcher: {
+    label: 'AI Research Starter',
+    topic: 'ai research methods and reproducibility',
+    review: [
+      { prompt: 'Summarize one paper objective in two lines.', topic: 'paper reading' },
+      { prompt: 'List one threat to validity and one mitigation.', topic: 'critical analysis' },
+      { prompt: 'Draft one experiment hypothesis with measurable metric.', topic: 'experiment design' },
+    ],
+  },
+  security: {
+    label: 'Security Practice Starter',
+    topic: 'secure coding and threat modeling',
+    review: [
+      { prompt: 'Identify one trust boundary in your system.', topic: 'threat modeling' },
+      { prompt: 'Name one likely misuse case and mitigation.', topic: 'secure design' },
+    ],
+  },
 };
 
 const defaultSession = {
@@ -22,13 +55,20 @@ const defaultSession = {
   widgetId: null,
 };
 
-function compactHistory(messages) {
-  return messages.slice(-8);
+function detectHeapPressure() {
+  const perf = globalThis?.performance;
+  const heap = perf?.memory;
+  if (!heap || !heap.jsHeapSizeLimit) return null;
+
+  const ratio = heap.usedJSHeapSize / heap.jsHeapSizeLimit;
+  if (ratio > 0.82) return 'High';
+  if (ratio > 0.62) return 'Medium';
+  return 'Low';
 }
 
-function summarizeMessages(messages) {
-  const recentUser = messages.filter((message) => message.role === 'user').slice(-3).map((item) => item.content).join(' | ');
-  return recentUser || 'Session summarized for compact memory usage.';
+function mergePressure(messagePressure, heapPressure) {
+  const rank = { Low: 1, Medium: 2, High: 3 };
+  return rank[heapPressure || 'Low'] > rank[messagePressure || 'Low'] ? heapPressure : messagePressure;
 }
 
 export default function ZenApp() {
@@ -40,51 +80,101 @@ export default function ZenApp() {
   const [status, setStatus] = useState({ running: false, models: [], error: '' });
   const [busy, setBusy] = useState(false);
   const [activeWidget, setActiveWidget] = useState(null);
-  const [modeMessage, setModeMessage] = useState('Checking local model...');
+  const [modeMessage, setModeMessage] = useState('Starting local runtime checks...');
   const [importText, setImportText] = useState('');
+  const [recovering, setRecovering] = useState(false);
+  const [setupTestMessage, setSetupTestMessage] = useState('');
+  const [seedPack, setSeedPack] = useState('beginner');
+  const [seedTopic, setSeedTopic] = useState('');
   const textareaRef = useRef(null);
 
   useEffect(() => {
-    saveZenState(state);
+    saveZenState(state).catch(() => {
+      setModeMessage('Storage degraded to in-memory mode. Export backup soon.');
+    });
   }, [state]);
+
+  useEffect(() => {
+    let mounted = true;
+    const hydrate = async () => {
+      const hydrated = await hydrateZenState().catch(() => null);
+      if (!mounted || !hydrated) return;
+      setState(hydrated);
+      setReady(true);
+    };
+
+    hydrate();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const session = state.sessions[0] || defaultSession;
     setActiveSession(session);
   }, [state.sessions]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const probe = async () => {
-      try {
-        const response = await fetch('/api/tutor', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'health' }),
-        });
-        const payload = await response.json();
-        if (!cancelled) {
-          setStatus(payload);
-          setModeMessage(payload.running ? 'Local Ollama detected.' : 'Ollama not running.');
-          setReady(true);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setStatus({ running: false, models: [], error: error?.message || 'Local model unavailable' });
-          setModeMessage('Ollama not running.');
-          setReady(true);
-        }
-      }
-    };
+  const probeRuntime = async () => {
+    setRecovering(true);
+    try {
+      const response = await fetch('/api/tutor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'health' }),
+      });
+      const payload = await response.json();
+      setStatus(payload);
 
-    probe();
-    return () => {
-      cancelled = true;
-    };
+      const names = (payload.models || []).map((item) => item.name || item.model || '').filter(Boolean);
+      if (!payload.running) {
+        setModeMessage('Ollama offline. Falling back to plain tutoring mode.');
+      } else if (!names.includes(state.settings.model)) {
+        setModeMessage(`Selected model missing. Available: ${names.join(', ') || 'none'}`);
+      } else {
+        setModeMessage('Local tutor ready.');
+      }
+    } catch (error) {
+      setStatus({ running: false, models: [], error: error?.message || 'Local model unavailable' });
+      setModeMessage('Runtime probe failed. Offline fallback active.');
+    } finally {
+      setRecovering(false);
+      setReady(true);
+    }
+  };
+
+  useEffect(() => {
+    probeRuntime();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const currentModel = state.settings.model;
-  const memoryPressure = activeSession.messages.length > 24 ? 'High' : activeSession.messages.length > 12 ? 'Medium' : 'Low';
+  const memoryPressure = mergePressure(inferMemoryPressure(activeSession.messages), detectHeapPressure());
+  const enabledWidgets = getEnabledWidgets({
+    heavyWidgetsEnabled: state.settings.heavyWidgetsEnabled,
+    memoryPressure,
+  });
+  const runtimeState = deriveRuntimeState({
+    running: status.running,
+    models: status.models,
+    selectedModel: currentModel,
+    error: status.error,
+    recovering,
+  });
+
+  const orderedModels = useMemo(() => {
+    const discovered = (status.models || [])
+      .map((item) => item.name || item.model || '')
+      .filter(Boolean);
+
+    const merged = [...new Set([...preferredModelOrder, ...discovered])];
+    const discoveredSet = new Set(discovered);
+
+    return merged.map((name) => ({
+      name,
+      available: discoveredSet.has(name),
+      preferred: preferredModelOrder.includes(name),
+    }));
+  }, [status.models]);
 
   const visibleMessages = useMemo(() => compactHistory(activeSession.messages), [activeSession.messages]);
 
@@ -115,17 +205,18 @@ export default function ZenApp() {
   };
 
   const trimIfNeeded = (messages) => {
-    if (messages.length <= 12) return messages;
-    const summary = summarizeMessages(messages.slice(0, -8));
+    const trimmed = trimMessagesWithSummary(messages, memoryPressure === 'High' ? 6 : 8);
+    if (!trimmed.trimmed) return trimmed.messages;
+
     setState((previous) => ({
       ...previous,
-      summaries: [summary, ...previous.summaries].slice(0, 10),
+      summaries: [trimmed.summary, ...previous.summaries].slice(0, 20),
     }));
     setActiveSession((previous) => ({
       ...previous,
-      summary,
+      summary: trimmed.summary,
     }));
-    return [{ role: 'assistant', content: `Older turns summarized: ${summary}`, timestamp: new Date().toISOString() }, ...messages.slice(-8)];
+    return trimmed.messages;
   };
 
   const sendTurn = async (messageText) => {
@@ -148,12 +239,17 @@ export default function ZenApp() {
           profile: state.profile,
           topic: activeSession.topic,
           model: currentModel,
+          settings: state.settings,
+          memoryPressure,
           sessionSummary: activeSession.summary,
         }),
       });
 
       const payload = await response.json();
-      const normalized = normalizeTutorResponse(payload.output, '');
+      if (payload.failureState) {
+        setModeMessage(`Tutor degraded: ${payload.failureState}`);
+      }
+      const normalized = payload.output;
       const assistantMessage = {
         role: 'assistant',
         content: normalized.mentor_speech,
@@ -179,6 +275,40 @@ export default function ZenApp() {
   };
 
   const handleWidgetSubmit = (submission) => {
+    const topic = activeSession.topic || state.profile.topic || 'general study';
+    const isCorrect = submission?.isCorrect === true;
+
+    setState((previous) => {
+      const mastery = previous.mastery?.[topic] || { attempts: 0, correct: 0, streak: 0, updatedAt: null };
+      const nextMastery = {
+        attempts: mastery.attempts + 1,
+        correct: mastery.correct + (isCorrect ? 1 : 0),
+        streak: isCorrect ? mastery.streak + 1 : 0,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const telemetry = buildTelemetry({
+        widgetId: activeWidget?.id || 'unknown-widget',
+        isCorrect,
+        usedHint: submission?.usedHint === true,
+        answerData: { keys: Object.keys(submission || {}).slice(0, 10) },
+      });
+
+      const reviewQueue = isCorrect
+        ? previous.reviewQueue
+        : [{ prompt: submission?.prompt || 'Review this concept', topic, timestamp: Date.now() }, ...previous.reviewQueue].slice(0, 80);
+
+      return {
+        ...previous,
+        mastery: {
+          ...previous.mastery,
+          [topic]: nextMastery,
+        },
+        widgetSubmissions: [{ submission, telemetry, timestamp: Date.now() }, ...(previous.widgetSubmissions || [])].slice(0, 200),
+        reviewQueue,
+      };
+    });
+
     const wrapped = `Widget Response: ${JSON.stringify(submission)}`;
     sendTurn(wrapped);
   };
@@ -205,6 +335,7 @@ export default function ZenApp() {
     try {
       const imported = importZenBackup(importText);
       setState(imported);
+      saveZenState(imported).catch(() => null);
       setScreen(screens.hub);
       setImportText('');
     } catch {
@@ -212,11 +343,53 @@ export default function ZenApp() {
     }
   };
 
-  const resetProfile = () => {
-    const next = resetZenState();
+  const resetProfile = async () => {
+    const next = await resetZenState();
     setState(next);
     setActiveSession(defaultSession);
     setScreen(screens.setup);
+  };
+
+  const runSetupTest = async () => {
+    setSetupTestMessage('Testing selected model...');
+    try {
+      const response = await fetch('/api/tutor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'turn',
+          message: 'Give me one short study tip.',
+          history: [],
+          profile: state.profile,
+          topic: state.profile.topic,
+          model: state.settings.model,
+          settings: state.settings,
+        }),
+      });
+      const payload = await response.json();
+      setSetupTestMessage(payload.ok ? 'Model test succeeded.' : `Model test degraded: ${payload.failureState || 'fallback mode'}`);
+    } catch {
+      setSetupTestMessage('Model test failed. Offline fallback remains active.');
+    }
+  };
+
+  const applySeedPack = () => {
+    const pack = setupSeedPacks[seedPack] || setupSeedPacks.beginner;
+    const nextTopic = seedTopic.trim() || pack.topic;
+
+    setState((previous) => ({
+      ...previous,
+      profile: {
+        ...previous.profile,
+        topic: nextTopic,
+      },
+      reviewQueue: [
+        ...pack.review.map((item) => ({ ...item, timestamp: Date.now() })),
+        ...previous.reviewQueue,
+      ].slice(0, 80),
+    }));
+
+    setSetupTestMessage(`Seed applied: ${pack.label}. Topic set to "${nextTopic}".`);
   };
 
   const widgetNode = activeWidget ? (() => {
@@ -224,7 +397,12 @@ export default function ZenApp() {
     if (!Widget) {
       return <div className="zen-card">Unknown widget: {activeWidget.id}</div>;
     }
-    if (!widgetPolicy.enabled.includes(activeWidget.id)) {
+    const activeEnabledWidgets = getEnabledWidgetIds({
+      heavyWidgetsEnabled: state.settings.heavyWidgetsEnabled,
+      memoryPressure,
+    });
+
+    if (!activeEnabledWidgets.includes(activeWidget.id)) {
       return <div className="zen-card">This widget is disabled in the offline starter profile.</div>;
     }
     return <Widget data={activeWidget.data} onSubmit={handleWidgetSubmit} />;
@@ -359,7 +537,7 @@ export default function ZenApp() {
         }
         .zen-footer {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 1px;
           background: rgba(255,255,255,0.06);
           border-top: 1px solid rgba(255,255,255,0.08);
@@ -413,14 +591,60 @@ export default function ZenApp() {
 
         {screen === screens.setup && (
           <div className="zen-pane">
-            <div className="zen-card">
+            <div className="zen-card" style={{ marginBottom: 16 }}>
               <h2 style={{ marginTop: 0 }}>Launch check</h2>
+              <p>Runtime state: {runtimeState}</p>
               <p>Local model: {status.running ? 'Running' : 'Offline'}</p>
               <p>Detected models: {status.models?.length || 0}</p>
+              <p>Selected model: {state.settings.model}</p>
               <p>Profile: {state.profile.name}</p>
               <div className="zen-row">
+                <button className="zen-btn" onClick={probeRuntime}>Recheck runtime</button>
+                <button className="zen-btn" onClick={runSetupTest}>Test model</button>
                 <button className="zen-btn active" onClick={() => setScreen(screens.hub)}>Open Study Hub</button>
                 <button className="zen-btn" onClick={() => openSession(state.profile.topic || 'general study')}>Create Study Session</button>
+              </div>
+              {setupTestMessage ? <p>{setupTestMessage}</p> : null}
+            </div>
+
+            <div className="zen-card" style={{ marginBottom: 16 }}>
+              <h3 style={{ marginTop: 0 }}>Model selection (recommended order)</h3>
+              <select
+                className="zen-input"
+                value={state.settings.model}
+                onChange={(event) => setState((previous) => ({ ...previous, settings: { ...previous.settings, model: event.target.value } }))}
+              >
+                {orderedModels.map((item) => (
+                  <option key={item.name} value={item.name}>
+                    {item.name}{item.preferred ? ' (recommended)' : ''}{item.available ? '' : ' (not installed)'}
+                  </option>
+                ))}
+              </select>
+              <p style={{ color: '#9AA9BE' }}>Recommended: qwen2.5:0.5b for weakest hardware, phi3.5:mini for higher quality.</p>
+            </div>
+
+            <div className="zen-card">
+              <h3 style={{ marginTop: 0 }}>Profile and topic seeding wizard</h3>
+              <div className="zen-row" style={{ marginBottom: 10 }}>
+                <input
+                  className="zen-input"
+                  value={state.profile.name}
+                  onChange={(event) => setState((previous) => ({ ...previous, profile: { ...previous.profile, name: event.target.value } }))}
+                  placeholder="Learner name"
+                />
+                <select className="zen-input" value={seedPack} onChange={(event) => setSeedPack(event.target.value)}>
+                  {Object.entries(setupSeedPacks).map(([key, pack]) => <option key={key} value={key}>{pack.label}</option>)}
+                </select>
+                <input
+                  className="zen-input"
+                  value={seedTopic}
+                  onChange={(event) => setSeedTopic(event.target.value)}
+                  placeholder="Optional custom topic override"
+                />
+              </div>
+              <div className="zen-row">
+                <button className="zen-btn" onClick={applySeedPack}>Apply Seed</button>
+                <button className="zen-btn active" onClick={() => openSession((seedTopic || state.profile.topic || '').trim() || 'general study')}>Start Seeded Session</button>
               </div>
             </div>
           </div>
@@ -429,15 +653,18 @@ export default function ZenApp() {
         {screen === screens.hub && (
           <div className="zen-pane">
             <div className="zen-row" style={{ marginBottom: 16 }}>
-              <button className="zen-btn active" onClick={() => openSession(state.profile.topic || 'general study')}>Resume Study</button>
+              <button className="zen-btn active" onClick={() => openSession(state.profile.topic || 'general study')}>Continue Learning</button>
+              <button className="zen-btn" onClick={() => setScreen(screens.workspace)}>Resume Session</button>
+              <button className="zen-btn" onClick={() => openSession('review due')}>Review Due</button>
+              <button className="zen-btn" onClick={() => openSession('new topic practice')}>Start New Topic</button>
               <button className="zen-btn" onClick={() => openSession('flashcard review')}>Flashcards</button>
-              <button className="zen-btn" onClick={() => openSession('mcq practice')}>MCQ Practice</button>
-              <button className="zen-btn" onClick={() => openSession('spaced review')}>Spaced Review</button>
             </div>
 
             <div className="zen-card">
               <h3 style={{ marginTop: 0 }}>Current focus</h3>
               <p>{state.profile.topic}</p>
+              <p>Session health: {activeSession.messages.length > 0 ? 'active' : 'idle'}</p>
+              <p>Model health: {status.running ? 'online' : 'offline fallback'}</p>
               <p>Model tier: {state.settings.modelTier}</p>
               <p>Memory pressure: {memoryPressure}</p>
               <p>Review items: {state.reviewQueue.length}</p>
@@ -478,6 +705,7 @@ export default function ZenApp() {
               <div className="zen-card">
                 <h3 style={{ marginTop: 0 }}>Session state</h3>
                 <p>{activeSession.summary || 'No summary yet.'}</p>
+                <p className="zen-kbd"><b>Widgets</b> {enabledWidgets.length} enabled</p>
                 <p className="zen-kbd"><b>Model</b> {currentModel}</p>
                 <p className="zen-kbd"><b>Offline</b> {status.running ? 'Connected to local Ollama' : 'Using fallback mode'}</p>
               </div>
@@ -535,6 +763,15 @@ export default function ZenApp() {
                 onChange={(event) => setState((previous) => ({ ...previous, settings: { ...previous.settings, modelTier: event.target.value } }))}
                 placeholder="ultra-low"
               />
+              <div style={{ height: 12 }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={state.settings.heavyWidgetsEnabled}
+                  onChange={(event) => setState((previous) => ({ ...previous, settings: { ...previous.settings, heavyWidgetsEnabled: event.target.checked } }))}
+                />
+                Enable optional heavy widgets when memory allows
+              </label>
             </div>
 
             <div className="zen-card" style={{ marginBottom: 16 }}>
@@ -552,8 +789,10 @@ export default function ZenApp() {
 
         <div className="zen-footer">
           <div className="zen-stat">Model health: {status.running ? 'online' : 'offline'}</div>
+          <div className="zen-stat">Runtime state: {runtimeState}</div>
           <div className="zen-stat">Offline state: local-first</div>
           <div className="zen-stat">Memory pressure: {memoryPressure}</div>
+          <div className="zen-stat">Session state: {busy ? 'processing' : 'idle'}</div>
           <div className="zen-stat">Mastery state: {Object.keys(state.mastery).length || 0} tracked topics</div>
         </div>
       </div>
